@@ -264,12 +264,10 @@ export function CustomVideoPlayer({
         src={activeSrc}
         poster={poster ?? undefined}
         playsInline
-        // @ts-expect-error - iOS Safari legacy attribute
-        webkit-playsinline="true"
-        x5-playsinline="true"
         preload="metadata"
         className="aspect-video w-full bg-black"
         onClick={togglePlay}
+        {...({ "webkit-playsinline": "true", "x5-playsinline": "true" } as Record<string, string>)}
       >
         {subtitleUrl && (
           <track kind="subtitles" srcLang="hu" label="Magyar" src={subtitleUrl} default />
