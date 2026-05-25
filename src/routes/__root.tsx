@@ -80,6 +80,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "AxelSub – Magyar feliratos anime" },
+      { name: "twitter:description", content: "AxelSub – nézz magyar feliratos animéket, kövesd a kedvenceidet, csatlakozz a közösséghez." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d5a35e44-d7b4-4282-ba20-30adfe5ea323/id-preview-a2f1a30e--b3af4bd9-cda3-4171-8e44-44f7833d5081.lovable.app-1779742235045.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d5a35e44-d7b4-4282-ba20-30adfe5ea323/id-preview-a2f1a30e--b3af4bd9-cda3-4171-8e44-44f7833d5081.lovable.app-1779742235045.png" },
     ],
     links: [
       {
