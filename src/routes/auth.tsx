@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ function AuthPage() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -52,6 +54,21 @@ function AuthPage() {
     }
   }
 
+  async function onGoogle() {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) throw result.error;
+      if (!result.redirected) navigate({ to: "/" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google bejelentkezés sikertelen");
+      setGoogleLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-lg">
@@ -82,6 +99,14 @@ function AuthPage() {
             {loading ? "Folyamatban..." : mode === "login" ? "Bejelentkezés" : "Regisztráció"}
           </Button>
         </form>
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">vagy</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <Button type="button" variant="outline" className="w-full" onClick={onGoogle} disabled={googleLoading}>
+          {googleLoading ? "Átirányítás..." : "Folytatás Google-fiókkal"}
+        </Button>
         <button
           onClick={() => setMode(mode === "login" ? "signup" : "login")}
           className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-foreground"

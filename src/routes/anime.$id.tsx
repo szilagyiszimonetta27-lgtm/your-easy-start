@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
+import { AnimeActions } from "@/components/AnimeActions";
 
 export const Route = createFileRoute("/anime/$id")({
   component: AnimeDetails,
@@ -70,6 +71,10 @@ function AnimeDetails() {
               </div>
               {anime.leiras && <p className="mt-4 whitespace-pre-line text-foreground/90">{anime.leiras}</p>}
 
+              <div className="mt-6">
+                <AnimeActions animeId={anime.id} />
+              </div>
+
               <section className="mt-8">
                 <h2 className="mb-3 text-xl font-bold">Epizódok</h2>
                 {!episodes || episodes.length === 0 ? (
@@ -81,7 +86,9 @@ function AnimeDetails() {
                         <span className="text-sm">
                           {ep.episode_number}. rész {ep.title ? `– ${ep.title}` : ""}
                         </span>
-                        <span className="text-xs text-muted-foreground">hamarosan</span>
+                        <Link to="/watch/$episodeId" params={{ episodeId: ep.id }}>
+                          <Button size="sm" variant="outline">Nézés</Button>
+                        </Link>
                       </li>
                     ))}
                   </ul>
