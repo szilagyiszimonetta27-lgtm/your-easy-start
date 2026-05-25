@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -14,6 +15,18 @@ export function Navbar() {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data }) => setIsAdmin((data ?? []).some((r) => r.role === "admin")));
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-40 glass-card border-0 border-b">
@@ -24,6 +37,9 @@ export function Navbar() {
         <nav className="hidden gap-6 md:flex">
           <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">Kezdőlap</Link>
           <Link to="/browse" className="text-sm text-muted-foreground hover:text-foreground">Böngészés</Link>
+          {isAdmin && (
+            <Link to="/admin" className="text-sm text-primary hover:text-foreground">Admin</Link>
+          )}
         </nav>
         <div className="flex items-center gap-2">
           {user ? (
