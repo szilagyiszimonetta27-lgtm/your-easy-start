@@ -19,7 +19,7 @@ export function Navbar() {
     <header className="sticky top-0 z-40 glass-card border-0 border-b">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2">
-          <span className="text-xl font-bold text-glow text-primary">Anime Streamer</span>
+          <span className="text-xl font-bold text-glow text-primary">AxelSub</span>
         </Link>
         <nav className="hidden gap-6 md:flex">
           <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">Kezdőlap</Link>
