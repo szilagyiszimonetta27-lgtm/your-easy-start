@@ -29,10 +29,9 @@ function AnimeDetails() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("episodes")
-        .select("id, evad, resz, cim")
+        .select("id, episode_number, title")
         .eq("anime_id", id)
-        .order("evad", { ascending: true })
-        .order("resz", { ascending: true });
+        .order("episode_number", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -80,7 +79,7 @@ function AnimeDetails() {
                     {episodes.map((ep) => (
                       <li key={ep.id} className="flex items-center justify-between px-4 py-3">
                         <span className="text-sm">
-                          S{ep.evad}E{ep.resz} {ep.cim ? `– ${ep.cim}` : ""}
+                          {ep.episode_number}. rész {ep.title ? `– ${ep.title}` : ""}
                         </span>
                         <span className="text-xs text-muted-foreground">hamarosan</span>
                       </li>
