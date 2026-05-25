@@ -2,18 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
-import { Button } from "@/components/ui/button";
-import { useMemo, useState } from "react";
+import { CustomVideoPlayer, type VideoSource } from "@/components/CustomVideoPlayer";
+import { useEffect, useMemo, useState } from "react";
+import { extractThumbnail } from "@/lib/extractThumbnail";
 
 export const Route = createFileRoute("/watch/$episodeId")({
   component: WatchPage,
 });
 
-type Quality = "1080p" | "720p" | "480p" | "360p";
-
 function WatchPage() {
   const { episodeId } = Route.useParams();
-  const [quality, setQuality] = useState<Quality>("720p");
 
   const { data: episode, isLoading } = useQuery({
     queryKey: ["episode", episodeId],
@@ -28,25 +26,31 @@ function WatchPage() {
     },
   });
 
-  const sources = useMemo(() => {
-    if (!episode) return {} as Record<Quality, string | null>;
-    return {
-      "1080p": episode.url_1080p,
-      "720p": episode.url_720p,
-      "480p": episode.url_480p,
-      "360p": episode.url_360p,
-    } as Record<Quality, string | null>;
+  const sources: VideoSource[] = useMemo(() => {
+    if (!episode) return [];
+    const arr: VideoSource[] = [];
+    if (episode.url_1080p) arr.push({ label: "1080p", src: episode.url_1080p });
+    if (episode.url_720p) arr.push({ label: "720p", src: episode.url_720p });
+    if (episode.url_480p) arr.push({ label: "480p", src: episode.url_480p });
+    if (episode.url_360p) arr.push({ label: "360p", src: episode.url_360p });
+    if (arr.length === 0 && episode.video_url) arr.push({ label: "Auto", src: episode.video_url });
+    if (arr.length === 0 && episode.backup_url) arr.push({ label: "Backup", src: episode.backup_url });
+    return arr;
   }, [episode]);
 
-  const activeSrc =
-    sources[quality] ??
-    sources["720p"] ??
-    sources["480p"] ??
-    sources["1080p"] ??
-    sources["360p"] ??
-    episode?.video_url ??
-    episode?.backup_url ??
-    null;
+  const [autoPoster, setAutoPoster] = useState<string | null>(null);
+  useEffect(() => {
+    if (!episode || episode.thumbnail_url || episode.animes?.boritokep) return;
+    const first = sources[0]?.src;
+    if (!first) return;
+    let cancelled = false;
+    extractThumbnail(first, 10).then((url) => {
+      if (!cancelled) setAutoPoster(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [episode, sources]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -69,39 +73,25 @@ function WatchPage() {
                   {episode.episode_number}. rész {episode.title ? `– ${episode.title}` : ""}
                 </h1>
               </div>
-              <div className="flex gap-1">
-                {(["1080p", "720p", "480p", "360p"] as Quality[]).map((q) => (
-                  <Button
-                    key={q}
-                    size="sm"
-                    variant={quality === q ? "default" : "outline"}
-                    disabled={!sources[q]}
-                    onClick={() => setQuality(q)}
-                  >
-                    {q}
-                  </Button>
-                ))}
+            </div>
+            {sources.length === 0 ? (
+              <div className="flex aspect-video items-center justify-center rounded-xl border border-border bg-black text-muted-foreground">
+                Nincs videó link feltöltve ehhez az epizódhoz.
               </div>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-border bg-black">
-              {activeSrc ? (
-                <video
-                  key={activeSrc}
-                  src={activeSrc}
-                  controls
-                  poster={episode.thumbnail_url ?? episode.animes?.boritokep ?? undefined}
-                  className="aspect-video w-full"
-                >
-                  {episode.subtitle_url && episode.subtitle_type !== "embedded" && (
-                    <track kind="subtitles" srcLang="hu" label="Magyar" src={episode.subtitle_url} default />
-                  )}
-                </video>
-              ) : (
-                <div className="flex aspect-video items-center justify-center text-muted-foreground">
-                  Nincs videó link feltöltve ehhez az epizódhoz.
-                </div>
-              )}
-            </div>
+            ) : (
+              <CustomVideoPlayer
+                sources={sources}
+                poster={episode.thumbnail_url ?? episode.animes?.boritokep ?? autoPoster}
+                subtitleUrl={
+                  episode.subtitle_url && episode.subtitle_type !== "embedded"
+                    ? episode.subtitle_url
+                    : null
+                }
+                storageKey={episode.id}
+                openingSkipSeconds={85}
+                endingSkipSeconds={85}
+              />
+            )}
           </>
         )}
       </main>

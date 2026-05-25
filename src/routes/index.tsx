@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
-import { AnimeCard, type AnimeCardData } from "@/components/AnimeCard";
+import { HorizontalAnimeRow, type HorizontalAnimeItem } from "@/components/HorizontalAnimeRow";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 
@@ -16,11 +16,12 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("animes")
-        .select("id, anime_nev, boritokep, mufajok, ev, average_rating, is_featured")
+        .select("id, anime_nev, boritokep, mufajok, ev, average_rating, epizod_szam, is_featured, created_at")
         .eq("is_featured", true)
-        .limit(12);
+        .order("created_at", { ascending: false })
+        .limit(18);
       if (error) throw error;
-      return (data ?? []) as AnimeCardData[];
+      return (data ?? []) as HorizontalAnimeItem[];
     },
   });
 
@@ -29,11 +30,11 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("animes")
-        .select("id, anime_nev, boritokep, mufajok, ev, average_rating")
+        .select("id, anime_nev, boritokep, mufajok, ev, average_rating, epizod_szam, created_at")
         .order("created_at", { ascending: false })
-        .limit(18);
+        .limit(24);
       if (error) throw error;
-      return (data ?? []) as AnimeCardData[];
+      return (data ?? []) as HorizontalAnimeItem[];
     },
   });
 
@@ -53,25 +54,14 @@ function Index() {
         </section>
 
         {featured && featured.length > 0 && (
-          <Section title="Kiemelt animék" items={featured} />
+          <HorizontalAnimeRow title="Kiemelt animék" items={featured} />
         )}
-        <Section title="Legújabbak" items={latest ?? []} empty="Még nincs anime az adatbázisban. Adminként vegyél fel egyet a Cloud felületen." />
+        <HorizontalAnimeRow
+          title="Legújabbak"
+          items={latest ?? []}
+          empty="Még nincs anime az adatbázisban. Adminként vegyél fel egyet a Cloud felületen."
+        />
       </main>
     </div>
-  );
-}
-
-function Section({ title, items, empty }: { title: string; items: AnimeCardData[]; empty?: string }) {
-  return (
-    <section className="mt-12">
-      <h2 className="mb-4 text-2xl font-bold">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty ?? "Nincs találat."}</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {items.map((a) => <AnimeCard key={a.id} anime={a} />)}
-        </div>
-      )}
-    </section>
   );
 }
