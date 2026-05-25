@@ -42,7 +42,7 @@ function Index() {
       <Navbar />
       <main className="container mx-auto px-4 py-10">
         <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/20 via-card to-background p-10 md:p-16">
-          <h1 className="text-glow text-4xl font-bold md:text-6xl">Anime Streamer</h1>
+          <h1 className="text-glow text-4xl font-bold md:text-6xl">AxelSub</h1>
           <p className="mt-3 max-w-xl text-muted-foreground">
             Magyar feliratos anime közösség. Nézd, kövesd, értékeld és kérd a kedvenceidet.
           </p>
