@@ -1,58 +1,40 @@
-## Mit kapunk a feltöltött projektből
+## A probléma
 
-A zip egy Replit-alapú **Express + Vite + Drizzle (Postgres)** full-stack alkalmazás. Tartalmazza:
+A Vercel hibaüzenet ("Nem sikerült hozzáférni a tárhelyhez") két dolgot jelenthet:
 
-- **Frontend (client/src):** 13 oldal — Home, Browse, AnimeDetails, WatchPage, Auth, Profile, MangaList/Reader, NewsPage, RequestsPage, ShopPage/Product, VerifyEmail, ResetPassword + admin felület.
-- **Backend (server/):** ~1220 sor Express route, saját session-auth, Drizzle ORM, Supabase sync.
-- **Schema (shared/schema.ts):** users, animes, episodes, ratings, favorites, watchlist, comments, requests, shop/orders, notifications, news, manga — kb. 15+ tábla, több enum.
+1. **Repo hozzáférés** – a Vercel-fiókod nem látja a GitHub repót (másik GitHub account van bekötve).
+2. **Build hiba / env változók** – a Vercel be tudja olvasni a repót, de a build elhasal, mert hiányoznak a Supabase env változók VAGY mert a projekt **Cloudflare Workers**-re van konfigurálva, nem Vercelre.
 
-Ezt **nem lehet egyetlen lépésben** futtatni Lovable-ben, mert a Lovable nem fogad saját Express szervert. Át kell ültetni a Lovable stackre (TanStack Start frontend + Lovable Cloud Postgres/Auth/Storage + Edge Functions).
+A projekted jelenleg **TanStack Start + Cloudflare Workers** stackre épül (`wrangler.jsonc`, `@cloudflare/vite-plugin` a `vite.config.ts`-ben, `src/server.ts` Worker-fetch handlerrel). Ez Vercelen **out-of-the-box nem fog működni** – ezért dob hibát a deploy.
 
-## Cél-stack
+## Javasolt út: Lovable Publish (1 kattintás, ma estére kész)
 
-- **Frontend:** Lovable web_app (Vite + React + Tailwind + shadcn) — a meglévő client/src kódot 1:1 portoljuk, mert az is React + Tailwind + shadcn.
-- **Backend:** Lovable Cloud
-  - DB: a Drizzle schema → SQL migrációkká alakítva, RLS-sel.
-  - Auth: Lovable Cloud auth (email+jelszó, Google) a saját session-auth helyett.
-  - Storage: anime borítók, avatarok, manga oldalak Cloud Storage bucketben.
-  - Edge functions: csak ott, ahol szerveroldali logika kell (pl. Discord webhook értesítés új epizódra, shop rendelés).
-- **Roles:** külön `user_roles` tábla + `has_role()` SECURITY DEFINER függvény (a sémában lévő `role` mező helyett — különben jogosultság-eszkaláció).
+Mivel sürgős ("még ma be kell lőjük"), a leggyorsabb és legbiztosabb:
 
-## Fázisok
+1. Jobb felül **Publish** gomb → AxelSub élesedik a `*.lovable.app` domainen.
+2. Minden env változó, Supabase, auth, admin – automatikusan működik, nem kell konfigurálni semmit.
+3. Ha később custom domain kell (pl. `axelsub.hu`), azt a Publish dialóguson belül lehet bekötni.
 
-A teljes app egyetlen üzenetben nem fér bele. Javaslat: fázisonként haladunk, te jóváhagyod, és lépünk tovább.
+Ez a Vercel-problémát teljesen megkerüli, és ugyanolyan production deploy.
 
-**1. fázis — Alap + DB séma (ez a kérés)**
-- `add_artifact web_app:anime-streamer` — TanStack Start scaffold létrehozása.
-- Lovable Cloud engedélyezése.
-- `client/src` átemelése (App, pages, components, ui, hooks, lib, index.css) a scaffoldba, útvonalak átkötése a TanStack Start router-re vagy react-router-ra (amit a scaffold ad).
-- DB migráció a `shared/schema.ts` alapján: minden tábla + enum + indexek létrehozása. RLS minden táblára. `user_roles` tábla + `app_role` enum + `has_role()` függvény.
-- Tailwind config + design tokenek átemelése.
-- Build zöldre, üres állapotban fut a frontend, DB él.
+## Ha mindenképp Vercel kell
 
-**2. fázis — Auth + alap olvasás**
-- Email+jelszó + Google bejelentkezés Lovable Cloud auth-fal.
-- `profiles` tábla a Cloud `auth.users`-re kötve (a régi `users` tábla helyett), trigger új user-re.
-- Browse / AnimeDetails / Home oldalak: anime + episode olvasás közvetlen a Cloud DB-ből (RLS: anonim olvashat).
-- Favoritok, watchlist, rating — bejelentkezett user írhat.
+Akkor a projektet át kell konfigurálni Cloudflare-ről Vercelre. Lépések, amiket én tudok elvégezni build módban:
 
-**3. fázis — Watch + media**
-- WatchPage + CustomVideoPlayer bekötése. Videó URL-ek a DB-ből; subtitle URL-ek Cloud Storage-ból.
-- Borítóképek és avatarok Cloud Storage-ba kerülnek.
+1. **`vite.config.ts`** – Cloudflare plugin helyett Vercel preset beállítása a TanStack Start nitro adapterhez.
+2. **`wrangler.jsonc`** törlése, **`vercel.json`** létrehozása a megfelelő build/output beállításokkal.
+3. **`src/server.ts`** – Worker `fetch` handler helyett Vercel-kompatibilis Node/Edge handler.
+4. Útmutató a Vercel dashboard env változók beillesztéséhez (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
 
-**4. fázis — Közösség (comments, requests, news)**
-- Komment és válasz, kérés-rendszer, hírek lista — DB + RLS.
+Ezután GitHub push → Vercel auto-deploy.
 
-**5. fázis — Admin felület**
-- Admin oldalak portolása (`role = 'admin'` RLS-sel, `has_role()` ellenőrzéssel). Anime/epizód feltöltés, user-kezelés.
+## Harmadik opció: Cloudflare Pages
 
-**6. fázis — Shop + manga + notifications (opcionális / utolsó)**
-- Shop tábla, rendelések. Manga olvasó. Push/email értesítés új epizódra (edge function + Lovable Email vagy Discord webhook secret-ből).
+A jelenlegi kód **már Cloudflare-re van írva**, szóval Cloudflare Pages-re 5 perc alatt felmegy módosítás nélkül. Csak a Vercel helyett a Cloudflare dashboardon kell importálni a GitHub repót.
 
-## Mire van szükségem most tőled
+## Kérdés
 
-1. **OK az 1. fázisra?** (scaffold + Cloud + DB séma + frontend csontváz — futtatható, de adat még nincs benne)
-2. Van-e meglévő **Discord webhook URL / SMTP / Supabase project**, amit használnál? Ha igen, secret-ként hozzáadjuk; ha nem, kihagyom és később pótoljuk.
-3. A `client/src` jelenlegi kinézetét tartsuk (sötét, lila #8b5cf6 akcent — a sémából látszik), vagy redesign?
-
-Ha az 1. fázist jóváhagyod, indítom: scaffold + Cloud bekapcsolás + séma + frontend átemelés.
+Melyiket csináljuk?
+- **A) Lovable Publish most** (leggyorsabb, ajánlott a határidő miatt)
+- **B) Vercel átkonfigurálás** (kb. 10-15 perc kód + neked be kell írni az env változókat Vercelen)
+- **C) Cloudflare Pages** (kódváltoztatás nélkül, neked kell összekötni a Cloudflare dashboardon)
