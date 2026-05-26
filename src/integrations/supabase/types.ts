@@ -58,6 +58,9 @@ export type Database = {
           created_at: string | null
           epizod_szam: number | null
           ev: number | null
+          hero_clip_end: number | null
+          hero_clip_episode_id: string | null
+          hero_clip_start: number | null
           id: string
           is_featured: boolean | null
           leiras: string | null
@@ -74,6 +77,9 @@ export type Database = {
           created_at?: string | null
           epizod_szam?: number | null
           ev?: number | null
+          hero_clip_end?: number | null
+          hero_clip_episode_id?: string | null
+          hero_clip_start?: number | null
           id?: string
           is_featured?: boolean | null
           leiras?: string | null
@@ -90,6 +96,9 @@ export type Database = {
           created_at?: string | null
           epizod_szam?: number | null
           ev?: number | null
+          hero_clip_end?: number | null
+          hero_clip_episode_id?: string | null
+          hero_clip_start?: number | null
           id?: string
           is_featured?: boolean | null
           leiras?: string | null
