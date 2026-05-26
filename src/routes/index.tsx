@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { HorizontalAnimeRow, type HorizontalAnimeItem } from "@/components/HorizontalAnimeRow";
-import { Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { HeroBanner, type HeroItem } from "@/components/HeroBanner";
+import { ContinueWatchingRow } from "@/components/ContinueWatchingRow";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -16,7 +16,7 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("animes")
-        .select("id, anime_nev, boritokep, mufajok, ev, average_rating, epizod_szam, is_featured, created_at")
+        .select("id, anime_nev, boritokep, mufajok, ev, average_rating, epizod_szam, is_featured, leiras, created_at")
         .eq("is_featured", true)
         .order("created_at", { ascending: false })
         .limit(18);
@@ -42,16 +42,12 @@ function Index() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-10">
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/20 via-card to-background p-10 md:p-16">
-          <h1 className="text-glow text-4xl font-bold md:text-6xl">AxelSub</h1>
-          <p className="mt-3 max-w-xl text-muted-foreground">
-            Magyar feliratos anime közösség. Nézd, kövesd, értékeld és kérd a kedvenceidet.
-          </p>
-          <div className="mt-6 flex gap-3">
-            <Link to="/browse"><Button>Böngészés</Button></Link>
-            <Link to="/auth"><Button variant="outline">Csatlakozás</Button></Link>
-          </div>
-        </section>
+        <HeroBanner
+          items={((featured ?? []).filter((a) => a.boritokep) as unknown as HeroItem[]).slice(0, 8)}
+          intervalMs={10000}
+        />
+
+        <ContinueWatchingRow />
 
         {featured && featured.length > 0 && (
           <HorizontalAnimeRow title="Kiemelt animék" items={featured} />
