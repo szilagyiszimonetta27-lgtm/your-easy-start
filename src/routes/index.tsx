@@ -63,11 +63,12 @@ function Index() {
             .map((a): HeroItem => {
               const ep = clipEpisodes?.find((e) => e.id === a.hero_clip_episode_id);
               const clip_url = ep?.url_720p || ep?.video_url || ep?.url_480p || ep?.url_360p || null;
+              const leiras = (a as unknown as { leiras: string | null }).leiras;
               return {
                 id: a.id,
                 anime_nev: a.anime_nev,
                 boritokep: a.boritokep,
-                leiras: a.leiras ?? null,
+                leiras: leiras ?? null,
                 mufajok: a.mufajok ?? null,
                 ev: a.ev ?? null,
                 clip_url: a.hero_clip_episode_id ? clip_url : null,
