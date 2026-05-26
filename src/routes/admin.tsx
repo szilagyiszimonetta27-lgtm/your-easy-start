@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin – AxelSub" }] }),
@@ -80,6 +81,9 @@ function AdminPage() {
       <main className="container mx-auto grid gap-8 px-4 py-10 md:grid-cols-2">
         <NewAnimeForm />
         <NewEpisodeForm />
+        <div className="md:col-span-2">
+          <HeroClipManager />
+        </div>
       </main>
     </div>
   );
