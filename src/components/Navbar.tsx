@@ -37,6 +37,7 @@ export function Navbar() {
         <nav className="hidden gap-6 md:flex">
           <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">Kezdőlap</Link>
           <Link to="/browse" className="text-sm text-muted-foreground hover:text-foreground">Böngészés</Link>
+          <Link to="/animek" className="text-sm text-muted-foreground hover:text-foreground">Animék</Link>
           {isAdmin && (
             <Link to="/admin" className="text-sm text-primary hover:text-foreground">Admin</Link>
           )}

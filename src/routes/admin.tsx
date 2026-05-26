@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin – AxelSub" }] }),
@@ -80,6 +81,9 @@ function AdminPage() {
       <main className="container mx-auto grid gap-8 px-4 py-10 md:grid-cols-2">
         <NewAnimeForm />
         <NewEpisodeForm />
+        <div className="md:col-span-2">
+          <HeroClipManager />
+        </div>
       </main>
     </div>
   );
@@ -163,6 +167,195 @@ function NewAnimeForm() {
       <Button type="submit" disabled={busy}>{busy ? "Mentés..." : "Mentés"}</Button>
       {msg && <p className="text-sm">{msg}</p>}
     </form>
+  );
+}
+
+function HeroClipManager() {
+  const qc = useQueryClient();
+  const [animeId, setAnimeId] = useState("");
+  const [episodeId, setEpisodeId] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const { data: animes } = useQuery({
+    queryKey: ["admin-featured-animes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("animes")
+        .select("id, anime_nev, is_featured, hero_clip_episode_id, hero_clip_start, hero_clip_end")
+        .order("anime_nev");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: episodes } = useQuery({
+    queryKey: ["admin-episodes-for-anime", animeId],
+    enabled: !!animeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("episodes")
+        .select("id, episode_number, title, duration")
+        .eq("anime_id", animeId)
+        .order("episode_number");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const current = useMemo(() => animes?.find((a) => a.id === animeId), [animes, animeId]);
+
+  function pickAnime(id: string) {
+    setAnimeId(id);
+    const a = animes?.find((x) => x.id === id);
+    setEpisodeId(a?.hero_clip_episode_id ?? "");
+    setStart(a?.hero_clip_start != null ? String(a.hero_clip_start) : "");
+    setEnd(a?.hero_clip_end != null ? String(a.hero_clip_end) : "");
+    setMsg(null);
+  }
+
+  async function save() {
+    if (!animeId) return;
+    setBusy(true);
+    setMsg(null);
+    const { error } = await supabase
+      .from("animes")
+      .update({
+        hero_clip_episode_id: episodeId || null,
+        hero_clip_start: start ? Number(start) : null,
+        hero_clip_end: end ? Number(end) : null,
+      })
+      .eq("id", animeId);
+    setBusy(false);
+    if (error) setMsg("Hiba: " + error.message);
+    else {
+      setMsg("Mentve!");
+      qc.invalidateQueries({ queryKey: ["featured-animes"] });
+      qc.invalidateQueries({ queryKey: ["admin-featured-animes"] });
+    }
+  }
+
+  async function clearClip() {
+    if (!animeId) return;
+    setBusy(true);
+    await supabase
+      .from("animes")
+      .update({ hero_clip_episode_id: null, hero_clip_start: null, hero_clip_end: null })
+      .eq("id", animeId);
+    setBusy(false);
+    setEpisodeId(""); setStart(""); setEnd("");
+    setMsg("Törölve.");
+    qc.invalidateQueries({ queryKey: ["featured-animes"] });
+    qc.invalidateQueries({ queryKey: ["admin-featured-animes"] });
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+      <div>
+        <h2 className="text-xl font-bold">Hero banner videó klip</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Válassz egy anime epizódot, és add meg másodpercben hol kezdődjön/végződjön az epikus jelenet, ami a főoldal hero banneren némán loop-olva fog menni. Csak a Kiemelt animékre érvényes.
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <Label>Anime</Label>
+          <select
+            value={animeId}
+            onChange={(e) => pickAnime(e.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">Válassz...</option>
+            {animes?.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.anime_nev}{a.is_featured ? " ★" : ""}{a.hero_clip_episode_id ? " 🎬" : ""}
+              </option>
+            ))}
+          </select>
+          {current && !current.is_featured && (
+            <p className="mt-1 text-xs text-yellow-500">Ez az anime nincs kiemelve – a hero banneren csak kiemeltek jelennek meg.</p>
+          )}
+        </div>
+        <div>
+          <Label>Epizód</Label>
+          <select
+            value={episodeId}
+            onChange={(e) => setEpisodeId(e.target.value)}
+            disabled={!animeId}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50"
+          >
+            <option value="">Válassz...</option>
+            {episodes?.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.episode_number}. rész{e.title ? ` – ${e.title}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Klip kezdete (mp)</Label>
+          <Input type="number" min="0" value={start} onChange={(e) => setStart(e.target.value)} placeholder="pl. 425" />
+        </div>
+        <div>
+          <Label>Klip vége (mp)</Label>
+          <Input type="number" min="0" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="pl. 465" />
+        </div>
+      </div>
+
+      <ClipPreview episodeId={episodeId} start={start ? Number(start) : 0} end={end ? Number(end) : null} />
+
+      <div className="flex gap-2">
+        <Button onClick={save} disabled={!animeId || busy}>{busy ? "Mentés..." : "Mentés"}</Button>
+        <Button variant="outline" onClick={clearClip} disabled={!animeId || busy}>Klip törlése</Button>
+        {msg && <span className="self-center text-sm text-muted-foreground">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ClipPreview({ episodeId, start, end }: { episodeId: string; start: number; end: number | null }) {
+  const { data } = useQuery({
+    queryKey: ["clip-preview-episode", episodeId],
+    enabled: !!episodeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("episodes")
+        .select("id, video_url, url_720p, url_480p, url_360p, duration")
+        .eq("id", episodeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const src = data?.url_720p || data?.video_url || data?.url_480p || data?.url_360p || "";
+  const videoRef = (node: HTMLVideoElement | null) => {
+    if (!node) return;
+    const onLoaded = () => { try { node.currentTime = start; } catch {} };
+    const onTime = () => { if (end != null && node.currentTime >= end) node.currentTime = start; };
+    node.onloadedmetadata = onLoaded;
+    node.ontimeupdate = onTime;
+  };
+
+  if (!episodeId) return <p className="text-xs text-muted-foreground">Válassz epizódot az előnézethez.</p>;
+  if (!src) return <p className="text-xs text-yellow-500">Az epizódhoz nincs videó URL beállítva.</p>;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-black">
+      <video
+        ref={videoRef}
+        src={src}
+        controls
+        className="aspect-video w-full"
+      />
+      <p className="px-3 py-2 text-xs text-muted-foreground">
+        Előnézet: állítsd be a videót, jegyezd fel a kezdő- és végpontot másodpercben, majd írd be fent.
+        {data?.duration ? ` (Teljes hossz: ${data.duration}s)` : ""}
+      </p>
+    </div>
   );
 }
 

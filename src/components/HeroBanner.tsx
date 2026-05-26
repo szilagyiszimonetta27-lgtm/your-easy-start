@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
@@ -10,11 +10,15 @@ export type HeroItem = {
   leiras?: string | null;
   mufajok?: string | null;
   ev?: number | null;
+  clip_url?: string | null;
+  clip_start?: number | null;
+  clip_end?: number | null;
 };
 
 export function HeroBanner({ items, intervalMs = 10000 }: { items: HeroItem[]; intervalMs?: number }) {
   const [idx, setIdx] = useState(0);
   const count = items.length;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     if (count <= 1) return;
@@ -26,11 +30,45 @@ export function HeroBanner({ items, intervalMs = 10000 }: { items: HeroItem[]; i
 
   if (count === 0) return null;
   const a = items[idx];
+  const hasClip = !!a.clip_url;
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !hasClip) return;
+    const start = a.clip_start ?? 0;
+    const end = a.clip_end ?? null;
+    const onLoaded = () => {
+      try { v.currentTime = start; v.play().catch(() => {}); } catch {}
+    };
+    const onTime = () => {
+      if (end != null && v.currentTime >= end) v.currentTime = start;
+    };
+    v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("timeupdate", onTime);
+    if (v.readyState >= 1) onLoaded();
+    return () => {
+      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("timeupdate", onTime);
+    };
+  }, [idx, hasClip, a.clip_url, a.clip_start, a.clip_end]);
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border bg-card">
       <div className="relative aspect-[16/9] w-full md:aspect-[21/9]">
-        {items.map((it, i) => (
+        {hasClip && (
+          <video
+            ref={videoRef}
+            key={`v-${a.id}`}
+            src={a.clip_url!}
+            muted
+            playsInline
+            autoPlay
+            loop
+            className="absolute inset-0 h-full w-full object-cover"
+            poster={a.boritokep ?? undefined}
+          />
+        )}
+        {!hasClip && items.map((it, i) => (
           <img
             key={it.id}
             src={it.boritokep ?? ""}

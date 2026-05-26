@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as BrowseRouteImport } from './routes/browse'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AnimekRouteImport } from './routes/animek'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WatchEpisodeIdRouteImport } from './routes/watch.$episodeId'
@@ -24,6 +25,11 @@ const BrowseRoute = BrowseRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimekRoute = AnimekRouteImport.update({
+  id: '/animek',
+  path: '/animek',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -50,6 +56,7 @@ const AnimeIdRoute = AnimeIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/animek': typeof AnimekRoute
   '/auth': typeof AuthRoute
   '/browse': typeof BrowseRoute
   '/anime/$id': typeof AnimeIdRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/animek': typeof AnimekRoute
   '/auth': typeof AuthRoute
   '/browse': typeof BrowseRoute
   '/anime/$id': typeof AnimeIdRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/animek': typeof AnimekRoute
   '/auth': typeof AuthRoute
   '/browse': typeof BrowseRoute
   '/anime/$id': typeof AnimeIdRoute
@@ -77,16 +86,25 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/animek'
     | '/auth'
     | '/browse'
     | '/anime/$id'
     | '/watch/$episodeId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/auth' | '/browse' | '/anime/$id' | '/watch/$episodeId'
+  to:
+    | '/'
+    | '/admin'
+    | '/animek'
+    | '/auth'
+    | '/browse'
+    | '/anime/$id'
+    | '/watch/$episodeId'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/animek'
     | '/auth'
     | '/browse'
     | '/anime/$id'
@@ -96,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AnimekRoute: typeof AnimekRoute
   AuthRoute: typeof AuthRoute
   BrowseRoute: typeof BrowseRoute
   AnimeIdRoute: typeof AnimeIdRoute
@@ -116,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/animek': {
+      id: '/animek'
+      path: '/animek'
+      fullPath: '/animek'
+      preLoaderRoute: typeof AnimekRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -152,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AnimekRoute: AnimekRoute,
   AuthRoute: AuthRoute,
   BrowseRoute: BrowseRoute,
   AnimeIdRoute: AnimeIdRoute,
