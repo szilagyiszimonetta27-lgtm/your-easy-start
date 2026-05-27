@@ -268,6 +268,185 @@ function NewAnimeForm() {
   );
 }
 
+function EpisodesEditor() {
+  const qc = useQueryClient();
+  const [animeId, setAnimeId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    episode_number: "",
+    title: "",
+    video_url: "",
+    url_720p: "",
+    url_1080p: "",
+    subtitle_url: "",
+    thumbnail_url: "",
+  });
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const { data: animes } = useQuery({
+    queryKey: ["admin-animes-edit-select"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("animes").select("id, anime_nev").order("anime_nev");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: episodes, refetch } = useQuery({
+    queryKey: ["admin-episodes-edit", animeId],
+    enabled: !!animeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("episodes")
+        .select("id, episode_number, title, video_url, url_720p, url_1080p, subtitle_url, thumbnail_url")
+        .eq("anime_id", animeId)
+        .order("episode_number");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  function startEdit(epId: string) {
+    const ep = episodes?.find((e) => e.id === epId);
+    if (!ep) return;
+    setEditingId(epId);
+    setForm({
+      episode_number: String(ep.episode_number ?? ""),
+      title: ep.title ?? "",
+      video_url: ep.video_url ?? "",
+      url_720p: ep.url_720p ?? "",
+      url_1080p: ep.url_1080p ?? "",
+      subtitle_url: ep.subtitle_url ?? "",
+      thumbnail_url: ep.thumbnail_url ?? "",
+    });
+    setMsg(null);
+  }
+
+  function cancel() {
+    setEditingId(null);
+    setMsg(null);
+  }
+
+  async function save() {
+    if (!editingId) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase
+      .from("episodes")
+      .update({
+        episode_number: Number(form.episode_number),
+        title: form.title || null,
+        video_url: form.video_url || null,
+        url_720p: form.url_720p || null,
+        url_1080p: form.url_1080p || null,
+        subtitle_url: form.subtitle_url || null,
+        thumbnail_url: form.thumbnail_url || null,
+      })
+      .eq("id", editingId);
+    setBusy(false);
+    if (error) setMsg("Hiba: " + error.message);
+    else {
+      setMsg("Mentve!");
+      setEditingId(null);
+      refetch();
+      qc.invalidateQueries({ queryKey: ["admin-episodes-edit", animeId] });
+    }
+  }
+
+  async function remove(epId: string) {
+    if (!confirm("Biztosan törlöd ezt az epizódot?")) return;
+    setBusy(true);
+    const { error } = await supabase.from("episodes").delete().eq("id", epId);
+    setBusy(false);
+    if (error) setMsg("Hiba: " + error.message);
+    else { refetch(); setMsg("Törölve."); }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+      <div>
+        <h2 className="text-xl font-bold">Epizódok szerkesztése</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Válassz animét, majd szerkeszd vagy töröld a meglévő epizódjait.</p>
+      </div>
+      <div>
+        <Label>Anime</Label>
+        <select
+          value={animeId}
+          onChange={(e) => { setAnimeId(e.target.value); setEditingId(null); }}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Válassz...</option>
+          {animes?.map((a) => <option key={a.id} value={a.id}>{a.anime_nev}</option>)}
+        </select>
+      </div>
+
+      {animeId && (
+        <div className="rounded-lg border border-border">
+          {(episodes ?? []).length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">Még nincs epizód.</p>
+          )}
+          {(episodes ?? []).map((ep) => (
+            <div key={ep.id} className="border-b border-border last:border-b-0">
+              <div className="flex items-center justify-between gap-2 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {ep.episode_number}. rész{ep.title ? ` – ${ep.title}` : ""}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">{ep.video_url || ep.url_720p || ep.url_1080p || "—"}</p>
+                </div>
+                <div className="flex gap-2">
+                  {editingId === ep.id ? (
+                    <Button size="sm" variant="outline" onClick={cancel}>Mégse</Button>
+                  ) : (
+                    <Button size="sm" variant="secondary" onClick={() => startEdit(ep.id)}>Szerkeszt</Button>
+                  )}
+                  <Button size="sm" variant="destructive" onClick={() => remove(ep.id)} disabled={busy}>Töröl</Button>
+                </div>
+              </div>
+              {editingId === ep.id && (
+                <div className="grid gap-3 border-t border-border bg-background/30 p-3 md:grid-cols-2">
+                  <div>
+                    <Label>Rész szám</Label>
+                    <Input type="number" value={form.episode_number} onChange={(e) => setForm({ ...form, episode_number: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Cím</Label>
+                    <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Videó URL (általános)</Label>
+                    <Input value={form.video_url} onChange={(e) => setForm({ ...form, video_url: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>720p URL</Label>
+                    <Input value={form.url_720p} onChange={(e) => setForm({ ...form, url_720p: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>1080p URL</Label>
+                    <Input value={form.url_1080p} onChange={(e) => setForm({ ...form, url_1080p: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Felirat URL (.vtt)</Label>
+                    <Input value={form.subtitle_url} onChange={(e) => setForm({ ...form, subtitle_url: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Thumbnail URL</Label>
+                    <Input value={form.thumbnail_url} onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })} />
+                  </div>
+                  <div className="md:col-span-2 flex gap-2">
+                    <Button onClick={save} disabled={busy}>{busy ? "Mentés..." : "Mentés"}</Button>
+                    {msg && <span className="self-center text-sm text-muted-foreground">{msg}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HeroClipManager() {
   const qc = useQueryClient();
   const [animeId, setAnimeId] = useState("");
