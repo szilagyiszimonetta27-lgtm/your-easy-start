@@ -272,7 +272,7 @@ function HeroClipManager() {
   const qc = useQueryClient();
   const [animeId, setAnimeId] = useState("");
   const [episodeId, setEpisodeId] = useState("");
-  const [start, setStart] = useState("");
+  const [start, setStart] = useState(""); // mm:ss
   const [end, setEnd] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -309,21 +309,26 @@ function HeroClipManager() {
     setAnimeId(id);
     const a = animes?.find((x) => x.id === id);
     setEpisodeId(a?.hero_clip_episode_id ?? "");
-    setStart(a?.hero_clip_start != null ? String(a.hero_clip_start) : "");
-    setEnd(a?.hero_clip_end != null ? String(a.hero_clip_end) : "");
+    setStart(secondsToMMSS(a?.hero_clip_start));
+    setEnd(secondsToMMSS(a?.hero_clip_end));
     setMsg(null);
   }
 
   async function save() {
     if (!animeId) return;
+    const s = mmssToSeconds(start);
+    const e = mmssToSeconds(end);
+    if ((start && s == null) || (end && e == null)) {
+      setMsg("Időformátum: m:ss (pl. 7:05) vagy csak másodperc."); return;
+    }
     setBusy(true);
     setMsg(null);
     const { error } = await supabase
       .from("animes")
       .update({
         hero_clip_episode_id: episodeId || null,
-        hero_clip_start: start ? Number(start) : null,
-        hero_clip_end: end ? Number(end) : null,
+        hero_clip_start: s,
+        hero_clip_end: e,
       })
       .eq("id", animeId);
     setBusy(false);
@@ -394,16 +399,16 @@ function HeroClipManager() {
           </select>
         </div>
         <div>
-          <Label>Klip kezdete (mp)</Label>
-          <Input type="number" min="0" value={start} onChange={(e) => setStart(e.target.value)} placeholder="pl. 425" />
+          <Label>Klip kezdete (perc:mp)</Label>
+          <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder="pl. 7:05" />
         </div>
         <div>
-          <Label>Klip vége (mp)</Label>
-          <Input type="number" min="0" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="pl. 465" />
+          <Label>Klip vége (perc:mp)</Label>
+          <Input value={end} onChange={(e) => setEnd(e.target.value)} placeholder="pl. 7:45" />
         </div>
       </div>
 
-      <ClipPreview episodeId={episodeId} start={start ? Number(start) : 0} end={end ? Number(end) : null} />
+      <ClipPreview episodeId={episodeId} start={mmssToSeconds(start) ?? 0} end={mmssToSeconds(end)} />
 
       <div className="flex gap-2">
         <Button onClick={save} disabled={!animeId || busy}>{busy ? "Mentés..." : "Mentés"}</Button>
