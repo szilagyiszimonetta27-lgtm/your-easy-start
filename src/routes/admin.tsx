@@ -10,6 +10,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+// ---- mm:ss helpers ----
+function secondsToMMSS(s: number | null | undefined): string {
+  if (s == null || isNaN(Number(s))) return "";
+  const n = Math.max(0, Math.floor(Number(s)));
+  const m = Math.floor(n / 60);
+  const ss = n % 60;
+  return `${m}:${ss.toString().padStart(2, "0")}`;
+}
+function mmssToSeconds(v: string): number | null {
+  const t = v.trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  const m = t.match(/^(\d+):([0-5]?\d)$/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin – AxelSub" }] }),
   component: AdminPage,
@@ -84,6 +101,9 @@ function AdminPage() {
         <div className="md:col-span-2">
           <HeroClipManager />
         </div>
+        <div className="md:col-span-2">
+          <EpisodesEditor />
+        </div>
       </main>
     </div>
   );
@@ -102,6 +122,70 @@ function NewAnimeForm() {
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importQ, setImportQ] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  async function importFromAniList() {
+    const q = importQ.trim() || form.anime_nev.trim();
+    if (!q) { setMsg("Adj meg címet vagy MAL/AniList ID-t az importhoz."); return; }
+    setImporting(true); setMsg(null);
+    try {
+      const isId = /^\d+$/.test(q);
+      const query = `
+        query ($search: String, $id: Int, $idMal: Int) {
+          Media(search: $search, id: $id, idMal: $idMal, type: ANIME) {
+            id idMal title { romaji english native }
+            description(asHtml: false)
+            seasonYear episodes status
+            genres
+            coverImage { extraLarge large }
+            bannerImage
+          }
+        }`;
+      const variables: Record<string, unknown> = isId
+        ? { idMal: Number(q) }
+        : { search: q };
+      const r = await fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+      });
+      const j = await r.json();
+      const m = j?.data?.Media;
+      if (!m) {
+        // fallback: try as search if id failed
+        if (isId) {
+          const r2 = await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ query, variables: { search: q } }),
+          });
+          const j2 = await r2.json();
+          if (!j2?.data?.Media) { setMsg("Nem található anime."); setImporting(false); return; }
+          Object.assign(m ?? {}, j2.data.Media);
+        } else {
+          setMsg("Nem található anime."); setImporting(false); return;
+        }
+      }
+      const M = j?.data?.Media ?? m;
+      const title = M.title?.english || M.title?.romaji || M.title?.native || form.anime_nev;
+      const desc = (M.description ?? "").replace(/<br\s*\/?>(\n)?/gi, "\n").replace(/<[^>]+>/g, "");
+      setForm((f) => ({
+        ...f,
+        anime_nev: title,
+        leiras: desc,
+        boritokep: M.coverImage?.extraLarge || M.coverImage?.large || M.bannerImage || f.boritokep,
+        mufajok: (M.genres ?? []).join(", "),
+        ev: M.seasonYear ? String(M.seasonYear) : f.ev,
+        epizod_szam: M.episodes ? String(M.episodes) : f.epizod_szam,
+      }));
+      setMsg(`Importálva: ${title} (AniList #${M.id}${M.idMal ? `, MAL #${M.idMal}` : ""})`);
+    } catch (e) {
+      setMsg("Import hiba: " + (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -131,6 +215,20 @@ function NewAnimeForm() {
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-card p-6">
       <h2 className="text-xl font-bold">Új anime</h2>
+      <div className="space-y-1 rounded-lg border border-dashed border-border p-3">
+        <Label className="text-xs">Import AniList / MyAnimeList-ről</Label>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Cím vagy MAL ID (pl. 'Naruto' vagy 20)"
+            value={importQ}
+            onChange={(e) => setImportQ(e.target.value)}
+          />
+          <Button type="button" variant="secondary" onClick={importFromAniList} disabled={importing}>
+            {importing ? "..." : "Import"}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">Cím, leírás, borító, műfaj, év, epizódszám automatikusan kitöltődik.</p>
+      </div>
       <div>
         <Label>Cím *</Label>
         <Input required value={form.anime_nev} onChange={(e) => setForm({ ...form, anime_nev: e.target.value })} />
@@ -170,11 +268,190 @@ function NewAnimeForm() {
   );
 }
 
+function EpisodesEditor() {
+  const qc = useQueryClient();
+  const [animeId, setAnimeId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    episode_number: "",
+    title: "",
+    video_url: "",
+    url_720p: "",
+    url_1080p: "",
+    subtitle_url: "",
+    thumbnail_url: "",
+  });
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const { data: animes } = useQuery({
+    queryKey: ["admin-animes-edit-select"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("animes").select("id, anime_nev").order("anime_nev");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: episodes, refetch } = useQuery({
+    queryKey: ["admin-episodes-edit", animeId],
+    enabled: !!animeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("episodes")
+        .select("id, episode_number, title, video_url, url_720p, url_1080p, subtitle_url, thumbnail_url")
+        .eq("anime_id", animeId)
+        .order("episode_number");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  function startEdit(epId: string) {
+    const ep = episodes?.find((e) => e.id === epId);
+    if (!ep) return;
+    setEditingId(epId);
+    setForm({
+      episode_number: String(ep.episode_number ?? ""),
+      title: ep.title ?? "",
+      video_url: ep.video_url ?? "",
+      url_720p: ep.url_720p ?? "",
+      url_1080p: ep.url_1080p ?? "",
+      subtitle_url: ep.subtitle_url ?? "",
+      thumbnail_url: ep.thumbnail_url ?? "",
+    });
+    setMsg(null);
+  }
+
+  function cancel() {
+    setEditingId(null);
+    setMsg(null);
+  }
+
+  async function save() {
+    if (!editingId) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase
+      .from("episodes")
+      .update({
+        episode_number: Number(form.episode_number),
+        title: form.title || null,
+        video_url: form.video_url || null,
+        url_720p: form.url_720p || null,
+        url_1080p: form.url_1080p || null,
+        subtitle_url: form.subtitle_url || null,
+        thumbnail_url: form.thumbnail_url || null,
+      })
+      .eq("id", editingId);
+    setBusy(false);
+    if (error) setMsg("Hiba: " + error.message);
+    else {
+      setMsg("Mentve!");
+      setEditingId(null);
+      refetch();
+      qc.invalidateQueries({ queryKey: ["admin-episodes-edit", animeId] });
+    }
+  }
+
+  async function remove(epId: string) {
+    if (!confirm("Biztosan törlöd ezt az epizódot?")) return;
+    setBusy(true);
+    const { error } = await supabase.from("episodes").delete().eq("id", epId);
+    setBusy(false);
+    if (error) setMsg("Hiba: " + error.message);
+    else { refetch(); setMsg("Törölve."); }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+      <div>
+        <h2 className="text-xl font-bold">Epizódok szerkesztése</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Válassz animét, majd szerkeszd vagy töröld a meglévő epizódjait.</p>
+      </div>
+      <div>
+        <Label>Anime</Label>
+        <select
+          value={animeId}
+          onChange={(e) => { setAnimeId(e.target.value); setEditingId(null); }}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Válassz...</option>
+          {animes?.map((a) => <option key={a.id} value={a.id}>{a.anime_nev}</option>)}
+        </select>
+      </div>
+
+      {animeId && (
+        <div className="rounded-lg border border-border">
+          {(episodes ?? []).length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">Még nincs epizód.</p>
+          )}
+          {(episodes ?? []).map((ep) => (
+            <div key={ep.id} className="border-b border-border last:border-b-0">
+              <div className="flex items-center justify-between gap-2 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {ep.episode_number}. rész{ep.title ? ` – ${ep.title}` : ""}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">{ep.video_url || ep.url_720p || ep.url_1080p || "—"}</p>
+                </div>
+                <div className="flex gap-2">
+                  {editingId === ep.id ? (
+                    <Button size="sm" variant="outline" onClick={cancel}>Mégse</Button>
+                  ) : (
+                    <Button size="sm" variant="secondary" onClick={() => startEdit(ep.id)}>Szerkeszt</Button>
+                  )}
+                  <Button size="sm" variant="destructive" onClick={() => remove(ep.id)} disabled={busy}>Töröl</Button>
+                </div>
+              </div>
+              {editingId === ep.id && (
+                <div className="grid gap-3 border-t border-border bg-background/30 p-3 md:grid-cols-2">
+                  <div>
+                    <Label>Rész szám</Label>
+                    <Input type="number" value={form.episode_number} onChange={(e) => setForm({ ...form, episode_number: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Cím</Label>
+                    <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Videó URL (általános)</Label>
+                    <Input value={form.video_url} onChange={(e) => setForm({ ...form, video_url: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>720p URL</Label>
+                    <Input value={form.url_720p} onChange={(e) => setForm({ ...form, url_720p: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>1080p URL</Label>
+                    <Input value={form.url_1080p} onChange={(e) => setForm({ ...form, url_1080p: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Felirat URL (.vtt)</Label>
+                    <Input value={form.subtitle_url} onChange={(e) => setForm({ ...form, subtitle_url: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Thumbnail URL</Label>
+                    <Input value={form.thumbnail_url} onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })} />
+                  </div>
+                  <div className="md:col-span-2 flex gap-2">
+                    <Button onClick={save} disabled={busy}>{busy ? "Mentés..." : "Mentés"}</Button>
+                    {msg && <span className="self-center text-sm text-muted-foreground">{msg}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HeroClipManager() {
   const qc = useQueryClient();
   const [animeId, setAnimeId] = useState("");
   const [episodeId, setEpisodeId] = useState("");
-  const [start, setStart] = useState("");
+  const [start, setStart] = useState(""); // mm:ss
   const [end, setEnd] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -211,21 +488,26 @@ function HeroClipManager() {
     setAnimeId(id);
     const a = animes?.find((x) => x.id === id);
     setEpisodeId(a?.hero_clip_episode_id ?? "");
-    setStart(a?.hero_clip_start != null ? String(a.hero_clip_start) : "");
-    setEnd(a?.hero_clip_end != null ? String(a.hero_clip_end) : "");
+    setStart(secondsToMMSS(a?.hero_clip_start));
+    setEnd(secondsToMMSS(a?.hero_clip_end));
     setMsg(null);
   }
 
   async function save() {
     if (!animeId) return;
+    const s = mmssToSeconds(start);
+    const e = mmssToSeconds(end);
+    if ((start && s == null) || (end && e == null)) {
+      setMsg("Időformátum: m:ss (pl. 7:05) vagy csak másodperc."); return;
+    }
     setBusy(true);
     setMsg(null);
     const { error } = await supabase
       .from("animes")
       .update({
         hero_clip_episode_id: episodeId || null,
-        hero_clip_start: start ? Number(start) : null,
-        hero_clip_end: end ? Number(end) : null,
+        hero_clip_start: s,
+        hero_clip_end: e,
       })
       .eq("id", animeId);
     setBusy(false);
@@ -296,16 +578,16 @@ function HeroClipManager() {
           </select>
         </div>
         <div>
-          <Label>Klip kezdete (mp)</Label>
-          <Input type="number" min="0" value={start} onChange={(e) => setStart(e.target.value)} placeholder="pl. 425" />
+          <Label>Klip kezdete (perc:mp)</Label>
+          <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder="pl. 7:05" />
         </div>
         <div>
-          <Label>Klip vége (mp)</Label>
-          <Input type="number" min="0" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="pl. 465" />
+          <Label>Klip vége (perc:mp)</Label>
+          <Input value={end} onChange={(e) => setEnd(e.target.value)} placeholder="pl. 7:45" />
         </div>
       </div>
 
-      <ClipPreview episodeId={episodeId} start={start ? Number(start) : 0} end={end ? Number(end) : null} />
+      <ClipPreview episodeId={episodeId} start={mmssToSeconds(start) ?? 0} end={mmssToSeconds(end)} />
 
       <div className="flex gap-2">
         <Button onClick={save} disabled={!animeId || busy}>{busy ? "Mentés..." : "Mentés"}</Button>

@@ -18,7 +18,7 @@ export type HeroItem = {
 export function HeroBanner({ items, intervalMs = 10000 }: { items: HeroItem[]; intervalMs?: number }) {
   const [idx, setIdx] = useState(0);
   const count = items.length;
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
 
   useEffect(() => {
     if (count <= 1) return;
@@ -30,53 +30,65 @@ export function HeroBanner({ items, intervalMs = 10000 }: { items: HeroItem[]; i
 
   if (count === 0) return null;
   const a = items[idx];
-  const hasClip = !!a.clip_url;
 
+  // Pause non-active videos, play & loop the active one within [start, end]
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !hasClip) return;
+    Object.entries(videoRefs.current).forEach(([id, v]) => {
+      if (!v) return;
+      if (id !== a.id) {
+        try { v.pause(); } catch {}
+      }
+    });
+    const v = videoRefs.current[a.id];
+    if (!v || !a.clip_url) return;
     const start = a.clip_start ?? 0;
     const end = a.clip_end ?? null;
-    const onLoaded = () => {
+    const seekAndPlay = () => {
       try { v.currentTime = start; v.play().catch(() => {}); } catch {}
     };
     const onTime = () => {
       if (end != null && v.currentTime >= end) v.currentTime = start;
     };
-    v.addEventListener("loadedmetadata", onLoaded);
+    if (v.readyState >= 1) seekAndPlay();
+    v.addEventListener("loadedmetadata", seekAndPlay);
     v.addEventListener("timeupdate", onTime);
-    if (v.readyState >= 1) onLoaded();
     return () => {
-      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("loadedmetadata", seekAndPlay);
       v.removeEventListener("timeupdate", onTime);
     };
-  }, [idx, hasClip, a.clip_url, a.clip_start, a.clip_end]);
+  }, [idx, a.id, a.clip_url, a.clip_start, a.clip_end]);
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border bg-card">
       <div className="relative aspect-[16/9] w-full md:aspect-[21/9]">
-        {hasClip && (
-          <video
-            ref={videoRef}
-            key={`v-${a.id}`}
-            src={a.clip_url!}
-            muted
-            playsInline
-            autoPlay
-            loop
-            className="absolute inset-0 h-full w-full object-cover"
-            poster={a.boritokep ?? undefined}
-          />
-        )}
-        {!hasClip && items.map((it, i) => (
-          <img
-            key={it.id}
-            src={it.boritokep ?? ""}
-            alt={it.anime_nev}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${i === idx ? "opacity-100" : "opacity-0"}`}
-            loading={i === 0 ? "eager" : "lazy"}
-          />
-        ))}
+        {items.map((it, i) => {
+          const active = i === idx;
+          const cls = `absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${active ? "opacity-100" : "opacity-0"}`;
+          if (it.clip_url) {
+            return (
+              <video
+                key={it.id}
+                ref={(el) => { videoRefs.current[it.id] = el; }}
+                src={it.clip_url}
+                muted
+                playsInline
+                loop
+                preload="metadata"
+                className={cls}
+                poster={it.boritokep ?? undefined}
+              />
+            );
+          }
+          return (
+            <img
+              key={it.id}
+              src={it.boritokep ?? ""}
+              alt={it.anime_nev}
+              className={cls}
+              loading={i === 0 ? "eager" : "lazy"}
+            />
+          );
+        })}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-background/30 to-transparent" />
 
