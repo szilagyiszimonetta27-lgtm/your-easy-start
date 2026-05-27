@@ -10,6 +10,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+// ---- mm:ss helpers ----
+function secondsToMMSS(s: number | null | undefined): string {
+  if (s == null || isNaN(Number(s))) return "";
+  const n = Math.max(0, Math.floor(Number(s)));
+  const m = Math.floor(n / 60);
+  const ss = n % 60;
+  return `${m}:${ss.toString().padStart(2, "0")}`;
+}
+function mmssToSeconds(v: string): number | null {
+  const t = v.trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  const m = t.match(/^(\d+):([0-5]?\d)$/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin – AxelSub" }] }),
   component: AdminPage,
@@ -83,6 +100,9 @@ function AdminPage() {
         <NewEpisodeForm />
         <div className="md:col-span-2">
           <HeroClipManager />
+        </div>
+        <div className="md:col-span-2">
+          <EpisodesEditor />
         </div>
       </main>
     </div>
