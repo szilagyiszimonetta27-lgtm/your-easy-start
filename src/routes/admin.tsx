@@ -122,6 +122,70 @@ function NewAnimeForm() {
   });
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importQ, setImportQ] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  async function importFromAniList() {
+    const q = importQ.trim() || form.anime_nev.trim();
+    if (!q) { setMsg("Adj meg címet vagy MAL/AniList ID-t az importhoz."); return; }
+    setImporting(true); setMsg(null);
+    try {
+      const isId = /^\d+$/.test(q);
+      const query = `
+        query ($search: String, $id: Int, $idMal: Int) {
+          Media(search: $search, id: $id, idMal: $idMal, type: ANIME) {
+            id idMal title { romaji english native }
+            description(asHtml: false)
+            seasonYear episodes status
+            genres
+            coverImage { extraLarge large }
+            bannerImage
+          }
+        }`;
+      const variables: Record<string, unknown> = isId
+        ? { idMal: Number(q) }
+        : { search: q };
+      const r = await fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+      });
+      const j = await r.json();
+      const m = j?.data?.Media;
+      if (!m) {
+        // fallback: try as search if id failed
+        if (isId) {
+          const r2 = await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ query, variables: { search: q } }),
+          });
+          const j2 = await r2.json();
+          if (!j2?.data?.Media) { setMsg("Nem található anime."); setImporting(false); return; }
+          Object.assign(m ?? {}, j2.data.Media);
+        } else {
+          setMsg("Nem található anime."); setImporting(false); return;
+        }
+      }
+      const M = j?.data?.Media ?? m;
+      const title = M.title?.english || M.title?.romaji || M.title?.native || form.anime_nev;
+      const desc = (M.description ?? "").replace(/<br\s*\/?>(\n)?/gi, "\n").replace(/<[^>]+>/g, "");
+      setForm((f) => ({
+        ...f,
+        anime_nev: title,
+        leiras: desc,
+        boritokep: M.coverImage?.extraLarge || M.coverImage?.large || M.bannerImage || f.boritokep,
+        mufajok: (M.genres ?? []).join(", "),
+        ev: M.seasonYear ? String(M.seasonYear) : f.ev,
+        epizod_szam: M.episodes ? String(M.episodes) : f.epizod_szam,
+      }));
+      setMsg(`Importálva: ${title} (AniList #${M.id}${M.idMal ? `, MAL #${M.idMal}` : ""})`);
+    } catch (e) {
+      setMsg("Import hiba: " + (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,6 +215,20 @@ function NewAnimeForm() {
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-card p-6">
       <h2 className="text-xl font-bold">Új anime</h2>
+      <div className="space-y-1 rounded-lg border border-dashed border-border p-3">
+        <Label className="text-xs">Import AniList / MyAnimeList-ről</Label>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Cím vagy MAL ID (pl. 'Naruto' vagy 20)"
+            value={importQ}
+            onChange={(e) => setImportQ(e.target.value)}
+          />
+          <Button type="button" variant="secondary" onClick={importFromAniList} disabled={importing}>
+            {importing ? "..." : "Import"}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">Cím, leírás, borító, műfaj, év, epizódszám automatikusan kitöltődik.</p>
+      </div>
       <div>
         <Label>Cím *</Label>
         <Input required value={form.anime_nev} onChange={(e) => setForm({ ...form, anime_nev: e.target.value })} />
