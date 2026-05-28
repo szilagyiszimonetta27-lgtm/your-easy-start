@@ -1,40 +1,19 @@
-## A probléma
+## Feladat
+A feltöltött `Kimetsu no Yaiba The Movie - Infinity Castle Part 1.ru.ass` ASS feliratfájl orosz szövegének magyarra fordítása, karakterhűen.
 
-A Vercel hibaüzenet ("Nem sikerült hozzáférni a tárhelyhez") két dolgot jelenthet:
+## Mit csinálok
+1. Beolvasom a teljes .ass fájlt (1665 sor).
+2. **Csak a `Dialogue:` sorok végén lévő szöveget** fordítom oroszról magyarra.
+3. **Érintetlenül hagyom**:
+   - `[Script Info]`, `[V4+ Styles]`, `[Events]` fejléceket
+   - Időkódokat (Start/End)
+   - Stílusneveket (Default, Song), Layer, Margin, Effect mezőket
+   - ASS formázó tageket: `{\i1}`, `{\pos(...)}`, `\N` sortörés, `\h` stb.
+   - Dalszöveg (`Song` stílus) sorokat is lefordítom, hacsak nem kéred, hogy maradjanak oroszul
+4. AI Gateway-en keresztül (Gemini) batch-elve fordítom, hogy a kontextus és a karakternevek (Muzan, Tanjiro, Nezuko stb.) konzisztensek legyenek.
+5. Eredmény mentése: `/mnt/documents/Kimetsu_no_Yaiba_Infinity_Castle_Part_1.hu.ass`
+6. Ellenőrzés: sorok száma egyezik az eredetivel, időkódok bitre azonosak, csak a szöveg változott.
 
-1. **Repo hozzáférés** – a Vercel-fiókod nem látja a GitHub repót (másik GitHub account van bekötve).
-2. **Build hiba / env változók** – a Vercel be tudja olvasni a repót, de a build elhasal, mert hiányoznak a Supabase env változók VAGY mert a projekt **Cloudflare Workers**-re van konfigurálva, nem Vercelre.
-
-A projekted jelenleg **TanStack Start + Cloudflare Workers** stackre épül (`wrangler.jsonc`, `@cloudflare/vite-plugin` a `vite.config.ts`-ben, `src/server.ts` Worker-fetch handlerrel). Ez Vercelen **out-of-the-box nem fog működni** – ezért dob hibát a deploy.
-
-## Javasolt út: Lovable Publish (1 kattintás, ma estére kész)
-
-Mivel sürgős ("még ma be kell lőjük"), a leggyorsabb és legbiztosabb:
-
-1. Jobb felül **Publish** gomb → AxelSub élesedik a `*.lovable.app` domainen.
-2. Minden env változó, Supabase, auth, admin – automatikusan működik, nem kell konfigurálni semmit.
-3. Ha később custom domain kell (pl. `axelsub.hu`), azt a Publish dialóguson belül lehet bekötni.
-
-Ez a Vercel-problémát teljesen megkerüli, és ugyanolyan production deploy.
-
-## Ha mindenképp Vercel kell
-
-Akkor a projektet át kell konfigurálni Cloudflare-ről Vercelre. Lépések, amiket én tudok elvégezni build módban:
-
-1. **`vite.config.ts`** – Cloudflare plugin helyett Vercel preset beállítása a TanStack Start nitro adapterhez.
-2. **`wrangler.jsonc`** törlése, **`vercel.json`** létrehozása a megfelelő build/output beállításokkal.
-3. **`src/server.ts`** – Worker `fetch` handler helyett Vercel-kompatibilis Node/Edge handler.
-4. Útmutató a Vercel dashboard env változók beillesztéséhez (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
-
-Ezután GitHub push → Vercel auto-deploy.
-
-## Harmadik opció: Cloudflare Pages
-
-A jelenlegi kód **már Cloudflare-re van írva**, szóval Cloudflare Pages-re 5 perc alatt felmegy módosítás nélkül. Csak a Vercel helyett a Cloudflare dashboardon kell importálni a GitHub repót.
-
-## Kérdés
-
-Melyiket csináljuk?
-- **A) Lovable Publish most** (leggyorsabb, ajánlott a határidő miatt)
-- **B) Vercel átkonfigurálás** (kb. 10-15 perc kód + neked be kell írni az env változókat Vercelen)
-- **C) Cloudflare Pages** (kódváltoztatás nélkül, neked kell összekötni a Cloudflare dashboardon)
+## Kérdés mielőtt indítok
+- A **dalszövegeket (Song stílus)** is fordítsam magyarra, vagy maradjanak oroszul?
+- Ha jó így, írd: **mehet**, és csinálom.
